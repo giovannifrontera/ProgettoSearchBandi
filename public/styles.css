@@ -1,0 +1,94 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#app {
+    min-height: 100vh;
+}
+
+.sidebar {
+    width: 280px;
+    min-height: 100vh; /* Full height sidebar */
+}
+
+.main-content {
+    overflow-y: auto; /* Scroll content if it overflows */
+    padding-bottom: 50px; /* Space for potential footers or if content is long */
+}
+
+.sidebar .nav-link {
+    color: #333;
+}
+
+.sidebar .nav-link.active {
+    background-color: #0d6efd; /* Bootstrap primary blue */
+    color: white;
+}
+
+.sidebar .nav-link:hover {
+    background-color: #e9ecef; /* Light grey hover */
+}
+.sidebar .nav-link.active:hover {
+    background-color: #0b5ed7; /* Darker blue for active hover */
+}
+
+
+.table th, .table td {
+    vertical-align: middle;
+}
+
+.table th[style*="cursor:pointer"] {
+    user-select: none; /* Prevent text selection on clickable headers */
+}
+.table th[style*="cursor:pointer"]:hover {
+    background-color: #f8f9fa; /* Light hover for sortable columns */
+}
+
+
+/* Toast custom styling if needed */
+.toast-container {
+    z-index: 1090 !important; /* Ensure toasts are on top */
+}
+
+/* Loading spinner style */
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Small text in tables */
+td small.text-muted {
+    font-size: 0.85em;
+}
+
+/* Progress bar text visibility */
+.progress {
+    font-size: 0.9rem;
+}
+.progress-bar {
+    color: #fff; /* Ensure text is visible on darker progress bars */
+    font-weight: bold;
+}
+
+/* Selected row highlight in schools table */
+.table-active, .table-active > th, .table-active > td {
+    background-color: rgba(13, 110, 253, 0.15) !important; /* Lighter version of primary for selection */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    #app {
+        flex-direction: column;
+    }
+    .sidebar {
+        width: 100%;
+        min-height: auto;
+        border-bottom: 1px solid #dee2e6;
+    }
+    .main-content {
+        width: 100%;
+    }
+    .filters-panel .row > .col-md-4 {
+        margin-bottom: 1rem; /* Space out filter inputs on small screens */
+    }
+}

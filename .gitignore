@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Database configuration file
+db/config.js
+
+# Temporary downloaded files (if any, like datasets)
+db/temp_schools_dataset.json
+db/temp_schools_dataset.csv
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Editor specific files
+.vscode/
+.idea/
+
+# Environment variables file (if used)
+.env
