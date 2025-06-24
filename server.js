@@ -1,8 +1,9 @@
 const express = require('express');
 const mysql = require('mysql2/promise');
-const path = path = require('path');
+const path = require('path');
 const bodyParser = require('body-parser'); // To parse JSON request bodies
 const dbConfig = require('./db/config');
+const { initializeDatabase, testConnection } = require('./db/init');
 
 // Import routes
 const schoolsRoutes = require('./routes/schools');
@@ -39,57 +40,37 @@ app.use((err, req, res, next) => {
 });
 
 // Test DB Connection and Start Server
-async function initializeDatabase() {
-  let connection;
+async function startServer() {
   try {
-    // Create a temporary connection to check DB status and create database if not exists
-    connection = await mysql.createConnection({
-      host: dbConfig.host,
-      user: dbConfig.user,
-      password: dbConfig.password,
-      // port: dbConfig.port || 3306 // if using a non-standard port
-    });
-    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\`;`);
-    console.log(`Database '${dbConfig.database}' ensured.`);
-    await connection.end();
-
-    // Now connect to the specific database to check/create tables
-    connection = await mysql.createConnection(dbConfig);
-    console.log('Successfully connected to MySQL database.');
-
-    // Read and execute schema.sql to create tables if they don't exist
-    // This is a simple approach; migrations are better for production.
-    const schemaSql = require('fs').readFileSync(path.join(__dirname, 'db/schema.sql'), 'utf8');
-    const statements = schemaSql.split(/;\s*$/m); // Split by semicolon at the end of a line, possibly with whitespace
-    for (const statement of statements) {
-      if (statement.trim().length > 0) {
-        await connection.query(statement);
-      }
+    console.log('🚀 Starting School Tender Finder server...');
+    
+    // Initialize database (create DB and tables if needed)
+    await initializeDatabase(true);
+    
+    // Test connection
+    const isConnected = await testConnection();
+    if (!isConnected) {
+      throw new Error('Database connection test failed');
     }
-    console.log('Database schema ensured (tables created if not exist).');
 
+    console.log(`✅ Server is running on http://localhost:${PORT}`);
+    console.log('🎉 School Tender Finder backend is ready.');
+    console.log(`🌐 Frontend accessible at http://localhost:${PORT}/index.html`);
+    
   } catch (error) {
-    console.error('Failed to initialize database:', error);
-    // process.exit(1); // Exit if DB connection fails
-    // For Replit, it might be better to let it start and show error on API use
-    // Or, the user needs to setup MySQL first.
-    console.error("**************************************************************************************");
-    console.error("IMPORTANT: Could not connect to or initialize the database.");
-    console.error("Please ensure MySQL is running and the credentials in 'db/config.js' are correct.");
-    console.error("The database '" + dbConfig.database + "' and its tables defined in 'db/schema.sql' must be accessible.");
-    console.error("**************************************************************************************");
-    // We'll allow the server to start, but API calls requiring DB will likely fail.
-  } finally {
-    if (connection) await connection.end();
+    console.error('\n💥 Failed to start server:', error.message);
+    console.error('\n📋 Troubleshooting:');
+    console.error('   1. Make sure XAMPP/MySQL is running');
+    console.error('   2. Check that MySQL is accessible on localhost:3306');
+    console.error('   3. Verify root user has no password set');
+    console.error('   4. Try running: npm run setup-db');
+    console.error('\n⚠️  Server will continue but database operations may fail.\n');
   }
 }
 
 
 app.listen(PORT, async () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-  await initializeDatabase();
-  console.log('School Tender Finder backend is ready.');
-  console.log(`Frontend should be accessible at http://localhost:${PORT}/index.html (or just http://localhost:${PORT}/)`);
+  await startServer();
 });
 
 // Optional: node-schedule for cron jobs (if implemented later)
