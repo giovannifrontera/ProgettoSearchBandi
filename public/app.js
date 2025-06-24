@@ -770,6 +770,25 @@ app.component('settings-view', {
             emit('show-toast', { title: 'Impostazioni', message: 'Impostazioni salvate (simulazione).', type: 'success' });
         };
 
+        const isSettingUpDb = ref(false);
+
+        const setupDatabase = async () => {
+            isSettingUpDb.value = true;
+            emit('show-toast', { title: 'Setup Database', message: 'Avvio procedura di installazione/ripristino del database...', type: 'info' });
+            try {
+                const response = await apiService.post('/setup-database');
+                if (response.success) {
+                    emit('show-toast', { title: 'Setup Database', message: response.message || 'Database configurato con successo!', type: 'success' });
+                } else {
+                    emit('show-toast', { title: 'Errore Setup Database', message: response.message || 'Errore durante la configurazione.', type: 'danger' });
+                }
+            } catch (error) {
+                 emit('show-toast', { title: 'Errore Setup Database', message: error.response?.data?.message || error.message || 'Errore di comunicazione con il server.', type: 'danger' });
+            } finally {
+                isSettingUpDb.value = false;
+            }
+        };
+
         onMounted(() => {
             // Placeholder: Load settings if they were saved previously
             // For example, from localStorage
@@ -779,15 +798,28 @@ app.component('settings-view', {
             // }
         });
 
-        return { settings, saveSettings };
+        return { settings, saveSettings, setupDatabase, isSettingUpDb };
     },
     template: `
         <div>
             <h3><i class="bi bi-gear"></i> Impostazioni</h3>
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Gestione Database</h5>
+                    <p>Se è il primo utilizzo o se ci sono problemi con il database, puoi tentare un setup/ripristino.</p>
+                    <button class="btn btn-warning" @click="setupDatabase" :disabled="isSettingUpDb">
+                        <span v-if="isSettingUpDb" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        <i v-else class="bi bi-database-gear"></i>
+                        Installa/Ripristina Database
+                    </button>
+                    <div v-if="isSettingUpDb" class="form-text">Operazione in corso...</div>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-body">
-                    <h5 class="card-title">Configurazione Applicazione</h5>
-                    <p class="text-muted">Queste impostazioni sono principalmente illustrative per questo PoC.</p>
+                    <h5 class="card-title">Configurazione Applicazione (Simulata)</h5>
+                    <p class="text-muted">Queste impostazioni sono principalmente illustrative per questo PoC e non hanno effetto reale sul backend.</p>
 
                     <div class="mb-3">
                         <label for="dbHost" class="form-label">Host MySQL</label>

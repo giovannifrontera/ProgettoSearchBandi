@@ -8,6 +8,7 @@ const dbConfig = require('./db/config');
 const schoolsRoutes = require('./routes/schools');
 const tendersRoutes = require('./routes/tenders');
 const scanRoutes = require('./routes/scan');
+const setupDatabase = require('./db/setup'); // Import setupDatabase function
 
 const app = express();
 const PORT = process.env.PORT || 3000;
