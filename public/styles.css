@@ -16,6 +16,10 @@ body {
     padding-bottom: 50px; /* Space for potential footers or if content is long */
 }
 
+#main-title {
+    color: red;
+}
+
 .sidebar .nav-link {
     color: #333;
 }
