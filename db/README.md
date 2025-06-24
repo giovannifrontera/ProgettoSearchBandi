@@ -41,8 +41,26 @@ npm run test-db
 
 - `npm start` - Avvia il server (crea automaticamente il database)
 - `npm run setup-db` - Inizializza il database manualmente
+- `npm run create-db` - Esegue lo script SQL completo per creare il database
 - `npm run test-db` - Testa la connessione al database
 - `npm run dev` - Avvia il server in modalità sviluppo
+
+## File di Database
+
+### `create_database.sql`
+Script SQL completo che crea:
+- Database `school_tender_finder` con charset UTF8MB4
+- Tutte le tabelle con indici ottimizzati
+- Viste per statistiche
+- Stored procedures per manutenzione
+- Triggers automatici
+- Dati iniziali di configurazione
+
+### `schema.sql`
+Schema semplificato per l'inizializzazione automatica del server
+
+### `init.js`
+Script Node.js per inizializzazione automatica del database
 
 ## Risoluzione Problemi
 

@@ -6,6 +6,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
     "setup-db": "node db/init.js",
+    "create-db": "mysql -u root -p < db/create_database.sql",
     "test-db": "node -e \"require('./db/init').testConnection()\"",
     "dev": "node server.js"
   },
