@@ -8,6 +8,9 @@
     "setup-db": "node db/init.js",
     "create-db": "mysql -u root -p < db/create_database.sql",
     "test-db": "node -e \"require('./db/init').testConnection()\"",
+    "import-schools": "node db/importSchools.js auto",
+    "import-schools-test": "node db/importSchools.js test",
+    "import-schools-local": "node db/importSchools.js local",
     "dev": "node server.js"
   },
   "repository": {

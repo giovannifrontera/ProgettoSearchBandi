@@ -6,7 +6,32 @@ CREATE TABLE schools (
   provincia VARCHAR(100),
   comune VARCHAR(100),
   sito_web VARCHAR(255),
-  tipologia VARCHAR(50)
+  tipologia VARCHAR(100),
+  indirizzo VARCHAR(255),
+  cap VARCHAR(5),
+  email VARCHAR(100),
+  pec VARCHAR(100),
+  codice_istituto_riferimento VARCHAR(12),
+  denominazione_istituto_riferimento VARCHAR(255),
+  area_geografica VARCHAR(50),
+  caratteristica_scuola VARCHAR(100),
+  sede_direttivo ENUM('SI', 'NO') DEFAULT 'NO',
+  sede_omnicomprensivo VARCHAR(50),
+  sede_scolastica ENUM('SI', 'NO') DEFAULT 'NO',
+  anno_scolastico VARCHAR(10),
+  codice_comune VARCHAR(10),
+  stato_crawler ENUM('attivo', 'inattivo', 'errore') DEFAULT 'inattivo',
+  ultima_scansione DATETIME DEFAULT NULL,
+  numero_scansioni INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  INDEX idx_regione (regione),
+  INDEX idx_provincia (provincia),
+  INDEX idx_comune (comune),
+  INDEX idx_tipologia (tipologia),
+  INDEX idx_area_geografica (area_geografica),
+  INDEX idx_istituto_riferimento (codice_istituto_riferimento)
 );
 
 CREATE TABLE tenders (
