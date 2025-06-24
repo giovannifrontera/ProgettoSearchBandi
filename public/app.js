@@ -558,23 +558,30 @@ app.component('scanner-view', {
                 
                 if (source === 'auto') {
                     // Importazione automatica
-                    response = await apiService.post('/schools/import', { source: 'auto' });
-                } else if (source === 'upload' && file) {
-                    // Upload file
+                    response = await apiService.post('/schools/import', { source: 'auto' });                } else if (source === 'upload' && file) {
+                    // Upload file con gestione fallback
                     const formData = new FormData();
                     formData.append('schoolFile', file);
                     
-                    response = await axios.post('/api/schools/import-upload', formData, {
-                        headers: {
-                            'Content-Type': 'multipart/form-data'
-                        },
-                        onUploadProgress: (progressEvent) => {
-                            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                            importStatus.value = `Upload in corso: ${progress}%`;
+                    try {
+                        response = await axios.post('/api/schools/import-upload', formData, {
+                            headers: {
+                                'Content-Type': 'multipart/form-data'
+                            },
+                            onUploadProgress: (progressEvent) => {
+                                const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                                importStatus.value = `Upload in corso: ${progress}%`;
+                            }
+                        });
+                        
+                        response = response.data; // axios wraps response in .data
+                    } catch (uploadError) {
+                        // Gestione errore 404 o multer non disponibile
+                        if (uploadError.response?.status === 404 || uploadError.response?.status === 503) {
+                            throw new Error('Upload file non disponibile sul server. Usa l\'importazione automatica o installa le dipendenze mancanti.');
                         }
-                    });
-                    
-                    response = response.data; // axios wraps response in .data
+                        throw uploadError;
+                    }
                 } else {
                     throw new Error('Configurazione importazione non valida');
                 }
@@ -607,11 +614,22 @@ app.component('scanner-view', {
                 } else if (error.message) {
                     errorMessage = error.message;
                 }
+                  importStatus.value = `Errore: ${errorMessage}`;
                 
-                importStatus.value = `Errore: ${errorMessage}`;
-                emit('show-toast', { 
-                    title: 'Errore Aggiornamento Scuole', 
-                    message: importStatus.value,                });
+                // Gestione specifica per errori di upload
+                if (errorMessage.includes('Upload') || errorMessage.includes('multer') || errorMessage.includes('404')) {
+                    emit('show-toast', { 
+                        title: 'Upload Non Disponibile', 
+                        message: `${errorMessage}\n\n💡 Soluzione: Usa "Aggiorna da MIUR" per l'importazione automatica.`, 
+                        type: 'warning' 
+                    });
+                } else {
+                    emit('show-toast', { 
+                        title: 'Errore Aggiornamento Scuole', 
+                        message: importStatus.value, 
+                        type: 'danger' 
+                    });
+                }
             } finally {
                 isImporting.value = false;
             }
