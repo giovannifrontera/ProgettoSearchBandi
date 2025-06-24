@@ -9,6 +9,10 @@ db/temp_schools_dataset.json
 db/temp_schools_dataset.csv
 *.log
 
+# Upload directory (temporary files)
+uploads/
+db/test_schools.json
+
 # OS generated files
 .DS_Store
 Thumbs.db

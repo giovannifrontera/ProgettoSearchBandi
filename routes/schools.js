@@ -1,8 +1,48 @@
 const express = require('express');
 const router = express.Router();
 const mysql = require('mysql2/promise');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const dbConfig = require('../db/config');
 const { importSchools } = require('../db/importSchools');
+
+// Configurazione multer per upload file
+const uploadDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Genera nome file unico con timestamp
+    const uniqueName = `schools_${Date.now()}_${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  // Accetta solo file JSON e CSV
+  const allowedTypes = ['.json', '.csv'];
+  const fileExt = path.extname(file.originalname).toLowerCase();
+  
+  if (allowedTypes.includes(fileExt)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Tipo file non supportato. Sono accettati solo file JSON e CSV.'), false);
+  }
+};
+
+const upload = multer({ 
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 100 * 1024 * 1024 // Limite 100MB
+  }
+});
 
 async function getDbConnection() {
   return await mysql.createConnection(dbConfig);
@@ -70,33 +110,93 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// POST /api/schools/import - Importa/aggiorna dataset scuole
+// POST /api/schools/import - Importa/aggiorna dataset scuole (automatico)
 router.post('/import', async (req, res, next) => {
-  const { source, filePath } = req.body; // source: "auto" or "upload", filePath for "upload"
+  const { source } = req.body;
 
-  if (source !== 'auto' && source !== 'upload') {
-    return res.status(400).json({ message: 'Invalid source type. Must be "auto" or "upload".' });
-  }
-  if (source === 'upload' && !filePath) {
-    // In a real scenario with file uploads, filePath would come from multer or similar middleware
-    // For this structure, we assume filePath is passed if source is 'upload',
-    // though the actual file handling from HTTP request is not implemented here.
-    // This is more of a placeholder for triggering the import logic.
-    // A more robust implementation would use `multer` to handle `multipart/form-data`.
-    console.warn("File path for 'upload' source is expected. The client should handle file upload and provide a server-accessible path or the server should handle multipart data.");
-    // For now, we'll assume filePath might be a path on the server if manually placed.
-    // return res.status(400).json({ message: 'File path is required for upload source.' });
+  if (source !== 'auto') {
+    return res.status(400).json({ message: 'Invalid source type. Use "auto" for automatic import or use /import-upload for file upload.' });
   }
 
   try {
-    console.log(`Starting school import process. Source: ${source}, FilePath: ${filePath || 'N/A'}`);
-    // The importSchools function is async. We await its completion.
-    await importSchools(source, filePath);
-    res.status(200).json({ message: 'School data import process initiated successfully. Check server logs for progress.' });
+    console.log('🚀 Starting automatic school import process...');
+    const result = await importSchools('auto');
+    
+    res.status(200).json({ 
+      success: true,
+      message: 'Importazione automatica completata con successo',
+      statistics: result.statistics,
+      duration: result.duration,
+      fileType: result.fileType,
+      fileSize: result.fileSize
+    });
   } catch (error) {
-    console.error('Error during school import route:', error);
-    // The error from importSchools might already be logged, but we pass it to the central handler.
-    next(error);
+    console.error('❌ Error during automatic school import:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Errore durante l\'importazione automatica',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/schools/import-upload - Importa dataset da file caricato
+router.post('/import-upload', upload.single('schoolFile'), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Nessun file caricato. Seleziona un file JSON o CSV.'
+      });
+    }
+
+    const uploadedFilePath = req.file.path;
+    const originalName = req.file.originalname;
+    const fileSizeMB = (req.file.size / (1024 * 1024)).toFixed(2);
+
+    console.log(`📁 File caricato: ${originalName} (${fileSizeMB} MB)`);
+    console.log(`📍 Path temporaneo: ${uploadedFilePath}`);
+
+    // Avvia importazione
+    const result = await importSchools('upload', uploadedFilePath);
+
+    // Pulisci file temporaneo
+    if (fs.existsSync(uploadedFilePath)) {
+      fs.unlinkSync(uploadedFilePath);
+      console.log('🧹 File temporaneo eliminato');
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Importazione da file "${originalName}" completata con successo`,
+      statistics: result.statistics,
+      duration: result.duration,
+      fileType: result.fileType,
+      fileSize: fileSizeMB,
+      originalFileName: originalName
+    });
+
+  } catch (error) {
+    console.error('❌ Error during file import:', error);
+    
+    // Pulisci file temporaneo in caso di errore
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+      console.log('🧹 File temporaneo eliminato dopo errore');
+    }
+
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        message: 'File troppo grande. Dimensione massima: 100MB'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Errore durante l\'importazione da file',
+      error: error.message
+    });
   }
 });
 

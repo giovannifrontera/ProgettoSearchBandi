@@ -547,54 +547,71 @@ app.component('scanner-view', {
         const importStatus = ref('');
         const isImporting = ref(false);
         const fileInputRef = ref(null); // For manual file upload
-
+        
         const updateSchoolDataset = async (source = 'auto', file = null) => {
             isImporting.value = true;
-            importStatus.value = source === 'auto' ? 'Download e importazione automatica in corso...' : 'Importazione da file in corso...';
+            importStatus.value = source === 'auto' ? 'Download e importazione automatica in corso...' : 'Caricamento e importazione file in corso...';
             emit('show-toast', { title: 'Aggiornamento Scuole', message: importStatus.value, type: 'info' });
 
-            let filePath = null;
-            if (source === 'upload' && file) {
-                // This is tricky without backend handling multipart/form-data
-                // The prompt implies a file path. For a web client, this would typically be:
-                // 1. User selects file.
-                // 2. File is uploaded to backend (e.g. via FormData + Axios POST to a dedicated endpoint).
-                // 3. Backend saves it temporarily, gets a path.
-                // 4. Backend calls importSchools with this path.
-                // For now, we'll simulate that the backend can accept a 'filePath' directly,
-                // which isn't standard for web uploads without a prior upload step.
-                // The current /api/schools/import expects a filePath.
-                // This part of the UI might need adjustment based on actual backend capabilities for file upload.
-                // For now, we will just send a signal to backend; backend needs to handle the file itself if source=upload.
-                // The prompt indicates filePath for "upload", so we'll assume it's a path the server can access.
-                // This is more of a conceptual client-side trigger.
-                // A real implementation would use FormData.
-                emit('show-toast', { title: 'Importazione File', message: 'La gestione diretta di file upload da client a server non è completamente implementata in questo boilerplate. Questa azione segnala al backend di usare un file locale se specificato.', type: 'warning' });
-                 // Let's assume for now that if filePath is provided, it's a path on the server.
-                 // filePath = file.name; // This is NOT how it works.
-                 // We'll pass null for filePath and let the backend decide based on source
-                 // The POST /api/schools/import {source:"upload", filePath: "path/to/file.csv"}
-                 // This implies the client somehow knows a server path.
-                 // For now, we will not use the file object directly.
-            }
-
             try {
-                // If source is 'upload', filePath would need to be set to a server-accessible path.
-                // This example doesn't implement the client-side file upload to get such a path.
-                // It just calls the API.
-                const payload = { source };
-                if (source === 'upload') {
-                    // This is a placeholder. Actual file upload needs more.
-                    payload.filePath = "NEEDS_ACTUAL_SERVER_SIDE_FILE_HANDLING_OR_PATH";
-                     emit('show-toast', { title: 'Nota', message: 'L\'import manuale richiede un file già presente sul server o un endpoint di upload dedicato.', type: 'warning' });
+                let response;
+                
+                if (source === 'auto') {
+                    // Importazione automatica
+                    response = await apiService.post('/schools/import', { source: 'auto' });
+                } else if (source === 'upload' && file) {
+                    // Upload file
+                    const formData = new FormData();
+                    formData.append('schoolFile', file);
+                    
+                    response = await axios.post('/api/schools/import-upload', formData, {
+                        headers: {
+                            'Content-Type': 'multipart/form-data'
+                        },
+                        onUploadProgress: (progressEvent) => {
+                            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                            importStatus.value = `Upload in corso: ${progress}%`;
+                        }
+                    });
+                    
+                    response = response.data; // axios wraps response in .data
+                } else {
+                    throw new Error('Configurazione importazione non valida');
                 }
 
-                const response = await apiService.post('/schools/import', payload);
-                importStatus.value = response.message || 'Avviato. Controlla i log del server.';
-                emit('show-toast', { title: 'Aggiornamento Scuole', message: importStatus.value, type: 'success' });
+                // Mostra statistiche se disponibili
+                if (response.statistics) {
+                    const stats = response.statistics;
+                    const statsMessage = `✅ Processate: ${stats.processed} | ⚠️ Saltate: ${stats.skipped} | ❌ Errori: ${stats.errors}`;
+                    importStatus.value = `${response.message}\n${statsMessage}`;
+                } else {
+                    importStatus.value = response.message || 'Importazione completata';
+                }
+
+                emit('show-toast', { 
+                    title: 'Aggiornamento Scuole', 
+                    message: response.success ? 'Importazione completata con successo' : importStatus.value, 
+                    type: response.success ? 'success' : 'warning' 
+                });
+
+                // Refresh della lista scuole se siamo nella tab corretta
+                if (response.success && typeof refreshSchools === 'function') {
+                    refreshSchools();
+                }
+
             } catch (error) {
-                importStatus.value = `Errore: ${error.response?.data?.message || error.message}`;
-                emit('show-toast', { title: 'Errore Aggiornamento Scuole', message: importStatus.value, type: 'danger' });
+                let errorMessage = 'Errore sconosciuto';
+                
+                if (error.response?.data?.message) {
+                    errorMessage = error.response.data.message;
+                } else if (error.message) {
+                    errorMessage = error.message;
+                }
+                
+                importStatus.value = `Errore: ${errorMessage}`;
+                emit('show-toast', { 
+                    title: 'Errore Aggiornamento Scuole', 
+                    message: importStatus.value,                });
             } finally {
                 isImporting.value = false;
             }
@@ -603,15 +620,41 @@ app.component('scanner-view', {
         const handleFileUpload = (event) => {
             const file = event.target.files[0];
             if (file) {
-                // This is where you would typically use FormData to upload the file
-                // For now, we'll just call updateSchoolDataset with source 'upload'
-                // and rely on backend to have a mechanism if filePath is used.
-                // This is a simplification.
-                emit('show-toast', { title: 'File Selezionato', message: `File: ${file.name}. L'importazione manuale con upload diretto non è implementata. Usa l'import automatico o assicurati che il backend possa accedere al file se specificato manualmente.`, type: 'info' });
-                // updateSchoolDataset('upload', file); // This 'file' object can't be directly used as 'filePath' by backend
+                // Verifica tipo file
+                const allowedTypes = ['application/json', 'text/csv', 'application/csv'];
+                const fileExt = file.name.split('.').pop().toLowerCase();
+                
+                if (!allowedTypes.includes(file.type) && !['json', 'csv'].includes(fileExt)) {
+                    emit('show-toast', { 
+                        title: 'Tipo File Non Supportato', 
+                        message: 'Seleziona un file JSON o CSV valido.', 
+                        type: 'danger' 
+                    });
+                    return;
+                }
+
+                // Verifica dimensione (100MB max)
+                const maxSize = 100 * 1024 * 1024; // 100MB
+                if (file.size > maxSize) {
+                    emit('show-toast', { 
+                        title: 'File Troppo Grande', 
+                        message: 'Il file non può superare i 100MB.', 
+                        type: 'danger' 
+                    });
+                    return;
+                }
+
+                const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+                emit('show-toast', { 
+                    title: 'File Selezionato', 
+                    message: `File: ${file.name} (${fileSizeMB} MB). Avvio importazione...`, 
+                    type: 'info' 
+                });
+                
+                // Avvia importazione
+                updateSchoolDataset('upload', file);
             }
         };
-
 
         const startScanForSchoolIds = async (schoolIds) => {
             if (!schoolIds || schoolIds.length === 0) {
@@ -667,8 +710,7 @@ app.component('scanner-view', {
                 const errorMsg = error.response?.data?.message || error.message;
                 scanLog.value.push(`Errore durante l'avvio della scansione: ${errorMsg}`);
                 overallStatus.value = `Errore: ${errorMsg}`;
-                emit('show-toast', { title: 'Errore Scanner', message: errorMsg, type: 'danger' });
-                isScanning.value = false;
+                emit('show-toast', { title: 'Errore Scanner', message: errorMsg, type: 'danger' });                isScanning.value = false;
             }
             // Note: isScanning might be set to false prematurely if the backend is truly async.
             // The UI feedback needs to be carefully managed for async backend tasks.
