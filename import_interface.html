@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Importazione Scuole - ProgettoSearchBandi</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 50px auto; 
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { 
+            color: #333; 
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            background-color: #fafafa;
+        }
+        .upload-area.dragover {
+            border-color: #007cba;
+            background-color: #e7f3ff;
+        }
+        input[type="file"] {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 100%;
+        }
+        button {
+            background-color: #007cba;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background-color: #005a8b;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+            display: none;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #007cba;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .stats {
+            margin-top: 15px;
+            font-family: monospace;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏫 Importazione Database Scuole</h1>
+        
+        <div class="info">
+            <strong>📋 Istruzioni:</strong><br>
+            • Carica un file JSON delle scuole dal formato MIUR<br>
+            • Oppure usa l'importazione automatica da MIUR<br>
+            • I dati verranno inseriti direttamente nel database MySQL
+        </div>
+
+        <div class="upload-area" id="uploadArea">
+            <h3>📁 Carica File JSON</h3>
+            <p>Trascina qui il file JSON oppure clicca per selezionare</p>
+            <input type="file" id="fileInput" accept=".json" />
+        </div>
+
+        <div style="text-align: center;">
+            <button onclick="uploadFile()" id="uploadBtn" disabled>📤 Importa File</button>
+            <button onclick="importFromMiur()" id="miurBtn">🌐 Importa da MIUR (Auto)</button>
+        </div>
+
+        <div class="progress" id="progress">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const result = document.getElementById('result');
+        const progress = document.getElementById('progress');
+        const progressBar = document.getElementById('progressBar');
+
+        // Gestione drag & drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                uploadBtn.disabled = false;
+            }
+        });
+
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', () => {
+            uploadBtn.disabled = fileInput.files.length === 0;
+        });
+
+        function showResult(message, isSuccess, stats = null) {
+            result.style.display = 'block';
+            result.className = `result ${isSuccess ? 'success' : 'error'}`;
+            result.innerHTML = message;
+            
+            if (stats) {
+                result.innerHTML += `
+                    <div class="stats">
+                        <strong>📊 Statistiche importazione:</strong><br>
+                        • Record elaborati: ${stats.processed}<br>
+                        • Record inseriti: ${stats.inserted}<br>
+                        • Record aggiornati: ${stats.updated}<br>
+                        • Errori: ${stats.errors}<br>
+                        • Durata: ${stats.duration} secondi
+                    </div>
+                `;
+            }
+        }
+
+        function showProgress(show = true) {
+            progress.style.display = show ? 'block' : 'none';
+            if (show) {
+                progressBar.style.width = '0%';
+                let width = 0;
+                const interval = setInterval(() => {
+                    width += Math.random() * 10;
+                    if (width > 90) width = 90;
+                    progressBar.style.width = width + '%';
+                }, 200);
+                
+                progress.dataset.interval = interval;
+            } else {
+                if (progress.dataset.interval) {
+                    clearInterval(progress.dataset.interval);
+                }
+                progressBar.style.width = '100%';
+                setTimeout(() => {
+                    progress.style.display = 'none';
+                }, 500);
+            }
+        }
+
+        async function uploadFile() {
+            if (!fileInput.files[0]) {
+                showResult('❌ Seleziona un file JSON', false);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            showProgress(true);
+            uploadBtn.disabled = true;
+
+            try {
+                const response = await fetch('import_schools.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                showProgress(false);
+
+                if (data.success) {
+                    showResult('✅ ' + data.message, true, data.stats);
+                    fileInput.value = '';
+                    uploadBtn.disabled = true;
+                } else {
+                    showResult('❌ ' + (data.error || 'Errore durante l\'importazione'), false);
+                }
+            } catch (error) {
+                showProgress(false);
+                showResult('❌ Errore di connessione: ' + error.message, false);
+            }
+
+            uploadBtn.disabled = false;
+        }
+
+        async function importFromMiur() {
+            showProgress(true);
+            document.getElementById('miurBtn').disabled = true;
+
+            try {
+                // Prima scarica i dati da MIUR
+                showResult('📥 Scaricamento dati da MIUR...', true);
+                
+                const downloadResponse = await fetch('https://dati.gov.it/api/3/action/package_show?id=scuole');
+                const downloadData = await downloadResponse.json();
+                
+                if (!downloadData.success) {
+                    throw new Error('Impossibile scaricare i dati da MIUR');
+                }
+                
+                // Trova il link al file JSON
+                const jsonResource = downloadData.result.resources.find(r => 
+                    r.format.toLowerCase() === 'json' || 
+                    r.url.toLowerCase().includes('.json')
+                );
+                
+                if (!jsonResource) {
+                    throw new Error('File JSON non trovato nei dati MIUR');
+                }
+                
+                // Scarica il file JSON
+                const jsonResponse = await fetch(jsonResource.url);
+                const jsonData = await jsonResponse.json();
+                
+                // Invia i dati al nostro script di importazione
+                const importResponse = await fetch('import_schools.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(jsonData)
+                });
+                
+                const result = await importResponse.json();
+                showProgress(false);
+                
+                if (result.success) {
+                    showResult('✅ ' + result.message, true, result.stats);
+                } else {
+                    showResult('❌ ' + (result.error || 'Errore durante l\'importazione'), false);
+                }
+                
+            } catch (error) {
+                showProgress(false);
+                showResult('❌ Errore importazione automatica: ' + error.message, false);
+            }
+            
+            document.getElementById('miurBtn').disabled = false;
+        }
+    </script>
+</body>
+</html>

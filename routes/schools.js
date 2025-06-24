@@ -9,6 +9,8 @@ const { importSchools } = require('../db/importSchools');
 // Tenta di caricare multer, se non disponibile usa fallback
 let multer;
 let upload;
+let multerError = null;
+
 try {
   multer = require('multer');
   
@@ -51,8 +53,12 @@ try {
 
   console.log('✅ Multer configurato correttamente per upload file');
 } catch (error) {
-  console.warn('⚠️ Multer non disponibile, upload file disabilitato:', error.message);
-  console.warn('💡 Per abilitare upload: npm install multer');
+  multerError = error.message;
+  console.warn('⚠️ Multer non disponibile:', error.message);
+  console.warn('💡 Per abilitare upload file:');
+  console.warn('   1. Esegui: npm install multer');
+  console.warn('   2. Riavvia il server: npm start');
+  console.warn('   3. Oppure usa: Aggiorna da MIUR (Auto)');
 }
 
 async function getDbConnection() {
