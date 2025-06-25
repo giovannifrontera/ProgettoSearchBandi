@@ -248,36 +248,46 @@
             }
 
             uploadBtn.disabled = false;
-        }
-
-        async function importFromMiur() {
+        }        async function importFromMiur() {
             showProgress(true);
             document.getElementById('miurBtn').disabled = true;
 
             try {
-                // Prima scarica i dati da MIUR
                 showResult('📥 Scaricamento dati da MIUR...', true);
                 
-                const downloadResponse = await fetch('https://dati.gov.it/api/3/action/package_show?id=scuole');
-                const downloadData = await downloadResponse.json();
-                
-                if (!downloadData.success) {
-                    throw new Error('Impossibile scaricare i dati da MIUR');
+                // Prima prova a scaricare direttamente i dati RDF-JSON
+                let jsonData;
+                try {
+                    const directResponse = await fetch('https://dati.istruzione.it/opendata/opendata/catalogo/elements1/?format=json');
+                    if (directResponse.ok) {
+                        jsonData = await directResponse.json();
+                    } else {
+                        throw new Error('Risposta non valida dal server MIUR');
+                    }
+                } catch (directError) {
+                    // Fallback: usa l'API del catalogo
+                    showResult('📥 Tentativo tramite catalogo MIUR...', true);
+                    const catalogResponse = await fetch('https://dati.gov.it/api/3/action/package_show?id=scuole');
+                    const catalogData = await catalogResponse.json();
+                    
+                    if (!catalogData.success) {
+                        throw new Error('Impossibile accedere al catalogo MIUR');
+                    }
+                    
+                    const jsonResource = catalogData.result.resources.find(r => 
+                        r.format.toLowerCase() === 'json' || 
+                        r.url.toLowerCase().includes('.json')
+                    );
+                    
+                    if (!jsonResource) {
+                        throw new Error('File JSON non trovato nei dati MIUR');
+                    }
+                    
+                    const jsonResponse = await fetch(jsonResource.url);
+                    jsonData = await jsonResponse.json();
                 }
                 
-                // Trova il link al file JSON
-                const jsonResource = downloadData.result.resources.find(r => 
-                    r.format.toLowerCase() === 'json' || 
-                    r.url.toLowerCase().includes('.json')
-                );
-                
-                if (!jsonResource) {
-                    throw new Error('File JSON non trovato nei dati MIUR');
-                }
-                
-                // Scarica il file JSON
-                const jsonResponse = await fetch(jsonResource.url);
-                const jsonData = await jsonResponse.json();
+                showResult('📤 Importazione dati nel database...', true);
                 
                 // Invia i dati al nostro script di importazione
                 const importResponse = await fetch('import_schools.php', {
@@ -299,7 +309,7 @@
                 
             } catch (error) {
                 showProgress(false);
-                showResult('❌ Errore importazione automatica: ' + error.message, false);
+                showResult('❌ Errore importazione automatica: ' + error.message + '<br><br>💡 <strong>Suggerimento:</strong> Prova a scaricare manualmente il file JSON dal sito MIUR e caricarlo usando il pulsante "Importa File".', false);
             }
             
             document.getElementById('miurBtn').disabled = false;

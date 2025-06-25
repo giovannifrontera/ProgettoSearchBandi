@@ -6,7 +6,7 @@ header('Access-Control-Allow-Headers: Content-Type');
 
 // Configurazione database
 $host = 'localhost';
-$dbname = 'search_bandi';
+$dbname = 'school_tender_finder';  // Corretta in base al config.js
 $username = 'root';
 $password = '';
 
@@ -52,7 +52,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 } else {
-    // Caso 3: Cerca file JSON nella cartella uploads
+    // Caso 3: Richiesta GET - restituisce informazioni di stato
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        $jsonFiles = glob(__DIR__ . '/uploads/*.json');
+        echo json_encode([
+            'info' => 'Script di importazione scuole pronto',
+            'method' => 'Invia dati via POST per importare',
+            'files_found' => count($jsonFiles),
+            'upload_dir' => __DIR__ . '/uploads/'
+        ]);
+        exit;
+    }
+    
+    // Caso 4: Cerca file JSON nella cartella uploads per POST senza dati
     $jsonFiles = glob(__DIR__ . '/uploads/*.json');
     if (empty($jsonFiles)) {
         die(json_encode(['error' => 'Nessun file JSON trovato. Carica un file o usa l\'importazione automatica.']));
